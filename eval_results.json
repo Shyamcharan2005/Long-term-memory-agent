@@ -1,0 +1,94 @@
+{
+  "runs": 1,
+  "pass_rates": {
+    "recall": [
+      3,
+      3
+    ],
+    "update": [
+      4,
+      4
+    ],
+    "forget": [
+      3,
+      3
+    ]
+  },
+  "cases": [
+    {
+      "run": 1,
+      "case": "R1 fact recall",
+      "passed": true,
+      "detail": "Based on what you\u2019ve told me, you should avoid peanuts since you\u2019re allergic to them. If you have any other dietary restrictions you\u2019d like me to note, just let me know!"
+    },
+    {
+      "run": 1,
+      "case": "R2 fact recall",
+      "passed": true,
+      "detail": "You work as a data analyst."
+    },
+    {
+      "run": 1,
+      "case": "R3 relation recall",
+      "passed": true,
+      "detail": "Your sister works at **Wipro**."
+    },
+    {
+      "run": 1,
+      "case": "U1 update city",
+      "passed": true,
+      "detail": "reply='You live in Pune.' facts=['user lives in pune']"
+    },
+    {
+      "run": 1,
+      "case": "U2 update preference",
+      "passed": true,
+      "detail": "reply='Your favorite programming language is Python.' facts=[\"user's favorite programming language is python\"]"
+    },
+    {
+      "run": 1,
+      "case": "U3 no duplicate facts",
+      "passed": true,
+      "detail": "matching facts=['user lives in hyderabad']"
+    },
+    {
+      "run": 1,
+      "case": "F1 forget approved",
+      "passed": true,
+      "detail": "facts=[]"
+    },
+    {
+      "run": 1,
+      "case": "F2 forget denied",
+      "passed": true,
+      "detail": "facts=['user is allergic to peanuts']"
+    },
+    {
+      "run": 1,
+      "case": "U4 relation update",
+      "passed": true,
+      "detail": "reply='Your sister\\u202fMeera works at **TCS**.' relations=['user sister meera', 'meera works_at tcs']"
+    },
+    {
+      "run": 1,
+      "case": "F3 relation forget approved",
+      "passed": true,
+      "detail": "relations=['user sister meera']"
+    }
+  ],
+  "graph_vs_vector": {
+    "question": "Where does my sister's husband work?",
+    "vector_top3": [
+      "Priya is my sister",
+      "Vikram works at Zoho",
+      "Rohan works at Amazon"
+    ],
+    "vector_answerable": false,
+    "graph_hops": [
+      "user -sister-> priya",
+      "priya -husband-> karan",
+      "karan -works_at-> infosys"
+    ],
+    "graph_answerable": true
+  }
+}
