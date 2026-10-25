@@ -2,7 +2,7 @@
 
 An LLM agent that remembers things about you across conversations. Plain facts go into a vector store, relationships between people and places go into a small graph, and anything destructive waits for a human to click Yes.
 
-**Live demo:** <https://long-term-memory-agent-e4yqy63ecqzl5kmfhkovz8.streamlit.app/> ·
+**Live demo:** <https://long-term-memory-agent-e4yqy63ecqzl5kmfhkovz8.streamlit.app/> 
 
 **Repo:** <https://github.com/Shyamcharan2005/Long-term-memory-agent>
 
