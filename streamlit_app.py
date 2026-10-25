@@ -39,7 +39,8 @@ def past_threads(limit=10):
         if len(seen) >= limit:
             break
     return seen
-
+def all_threads():
+    return {cp.config["configurable"]["thread_id"] for cp in app.checkpointer.list(None)}
 TITLES_FILE = DATA_DIR / "chat_titles.json"
 
 
@@ -107,16 +108,20 @@ with st.sidebar:
                 if tid == st.session_state.thread_id:
                     st.session_state.thread_id = uuid.uuid4().hex[:8]
                 st.rerun()
-    with st.popover("Reset all memory"):
-        st.write("Deletes every stored fact and relation. Chats are not affected.")
-        if st.button("Yes, erase memory", key="wipe"):
+    with st.popover("Reset everything"):
+        st.write("Deletes all stored facts, all relations and all chats.")
+        if st.button("Yes, erase everything", key="wipe"):
             ids = col.get()["ids"]
             if ids:
                 col.delete(ids=ids)
             with closing(_conn()) as c:
                 c.execute("DELETE FROM relations")
                 c.commit()
-            st.success("Memory erased.")
+            for tid in all_threads():
+                app.checkpointer.delete_thread(tid)
+            save_titles({})
+            st.session_state.thread_id = uuid.uuid4().hex[:8]
+            st.rerun()
 
 # ---- everything on screen comes from the saved thread state ----
 state = app.get_state(config)
