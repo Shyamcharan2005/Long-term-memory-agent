@@ -6,13 +6,24 @@ An LLM agent that remembers things about you across conversations. Plain facts g
 
 **Repo:** <https://github.com/Shyamcharan2005/Long-term-memory-agent>
 
-## What this is
+## Overview
 
 Chat models forget everything once a conversation ends. LangGraph's checkpointer fixes this only per thread: the same `thread_id` gets its history back, and a new chat starts empty. This project adds the missing layer. What you tell the agent is distilled into small records and kept in separate stores, so a brand-new chat still knows who you are.
 
 It is deliberately narrow. It does not book anything or browse the web. It remembers, updates and forgets, and I spent the effort on making that part dependable and measurable.
 
 Stack: LangGraph, ChromaDB, SQLite, Streamlit. The model is `openai/gpt-oss-120b` on the Groq free tier, used for the whole project. Embeddings run locally with `all-MiniLM-L6-v2`, so nothing besides the chat model needs an API key.
+
+## Motivation
+
+Any assistant that talks to the same person more than once, such as a support bot, a tutor or a personal planner, needs to carry context between conversations. Replaying old chat logs is expensive and noisy, and a plain vector store alone can't answer questions that depend on links between people or things.
+
+What this project demonstrates:
+
+- **The agent decides what to remember.** Storing, updating and forgetting are tool calls the model chooses, not hardcoded rules.
+- **Two memory types for two kinds of question.** Vector search for fuzzy facts, a relation table for multi-hop questions.
+- **Safe deletion.** Nothing is removed without a human approving the exact item.
+- **Measured behavior.** Scripted multi-session tests check the stores themselves, not just what the model says.
 
 ## Architecture
 
@@ -131,24 +142,14 @@ Rohan works at Amazon
 
 The two statements linking Priya to her husband and his employer are not in the results, so the question cannot be answered from them. Following relations in the graph answers it in three hops: `user -sister-> priya`, `priya -husband-> karan`, `karan -works_at-> infosys`. This is deterministic and uses no model. The setup is `graph_vs_vector()` in `eval.py`. A two-step chain (sister, then her employer) did not fail in the same setup, so the graph's advantage shows up on longer chains, not on every multi-step question.
 
-## Problems I ran into
+## Scope and constraints
 
-1. **Prompt rules were not enough.** Several of the fixes above (duplicate guard, automatic retrieval) exist because an instruction in the system prompt was followed most of the time and ignored the rest. Anything that must hold is now enforced in code.
-2. **The eval gave a false pass.** An early update test checked only the facts store, so it passed while a stale "lives in Hyderabad" relation was still sitting in the graph. The check now covers both stores.
-3. **Facts versus relations.** The model sometimes filed statements about the user themselves ("I study at CMR") as relations, which earlier broke recall. Automatic retrieval from both stores fixed the symptom, and the system prompt now describes the split with examples.
-4. **Weak similarity margins.** With a small embedding model, the right fact and a wrong one can score close (0.88 against 0.94 in one early test). That is why search returns the top three with distances and the model judges relevance, instead of trusting the top hit.
-5. **Resumed interrupts re-run the node.** See the approval design above.
-6. **Free-tier limits.** The Groq free tier caps tokens per day. I used it up with repeated eval runs, and the resulting rate-limit errors showed up as failed scenarios. Failures with a 429 error are infrastructure, not test results.
+- **Single-user memory by design.** There are no accounts, so in the hosted demo all visitors share one store. Do not enter real personal information.
+- **Free hosting.** Storage on the free tier is temporary, so memory may reset when the app restarts.
+- **Free model tier.** Groq's free plan has a daily token cap. When it runs out, the app shows a rate-limit error until it recovers.
+- **Evaluation scope.** The ten scenarios are a regression suite for the memory mechanics, not an accuracy benchmark.
 
-## Limitations
-
-- The model decides whether something is a fact or a relation. Retrieval covers both stores, so a wrong choice no longer loses the information, but the stored form can still be inconsistent.
-- Relation names are not enforced. The prompt suggests a vocabulary, and the model can still invent a new name.
-- Memory belongs to one user. In the hosted demo, every visitor reads and writes the same store, and it may reset when the app restarts because free hosting has temporary storage. Do not enter real personal information there.
-- The agent does not store its own guesses. It stores what you say.
-- Ten scenarios, one run.
-
-## Run locally
+## Installation and usage
 
 ```
 pip install -r requirements.txt
