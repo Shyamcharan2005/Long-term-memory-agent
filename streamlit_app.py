@@ -1,7 +1,10 @@
 import json
 import os
 import uuid
+from contextlib import closing
 
+from fact_tools import col
+from graph_tools import _conn
 import streamlit as st
 
 try:
@@ -16,7 +19,7 @@ from fact_tools import DATA_DIR
 
 st.set_page_config(page_title="Long-Term Memory Agent")
 st.title("Long-Term Memory Agent")
-st.caption("Remembers across chats: facts in a vector store, relationships in a graph. Deleting a memory needs your approval.")
+st.caption("Remembers across chats: facts in a vector store, relationships in a graph. Deleting a memory needs your aproval.Demo memory is shared by all visitors and may reset. Please use made-up details.")
 
 if "thread_id" not in st.session_state:
     st.session_state.thread_id = uuid.uuid4().hex[:8]
@@ -104,6 +107,16 @@ with st.sidebar:
                 if tid == st.session_state.thread_id:
                     st.session_state.thread_id = uuid.uuid4().hex[:8]
                 st.rerun()
+    with st.popover("Reset all memory"):
+        st.write("Deletes every stored fact and relation. Chats are not affected.")
+        if st.button("Yes, erase memory", key="wipe"):
+            ids = col.get()["ids"]
+            if ids:
+                col.delete(ids=ids)
+            with closing(_conn()) as c:
+                c.execute("DELETE FROM relations")
+                c.commit()
+            st.success("Memory erased.")
 
 # ---- everything on screen comes from the saved thread state ----
 state = app.get_state(config)
