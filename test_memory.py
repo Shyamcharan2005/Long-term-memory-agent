@@ -7,7 +7,7 @@ from langgraph.types import Command
 
 from agent import app, memory_context
 from fact_tools import col
-from graph_tools import _conn
+from graph_tools import _conn, remember_relation, query_relations
 
 
 # ---------- helpers ----------
@@ -109,3 +109,40 @@ def test_f3_relation_forget_approved():
     chat("f3-s1", "My sister Meera works at Wipro.")
     chat("f3-s2", "Forget that Meera works at Wipro.", approve="yes")
     assert not any("wipro" in x for x in relations())
+
+def wipe():
+    ids = col.get()["ids"]
+    if ids:
+        col.delete(ids=ids)
+    with closing(_conn()) as c:
+        c.execute("DELETE FROM relations")
+        c.commit()
+
+
+def test_graph_vs_vector():
+    """No LLM: vector top-3 misses the chain, graph hops find it."""
+    question = "Where does my sister's husband work?"
+    jobs = [("Ananya", "Google"), ("Rohan", "Amazon"), ("Karthik", "Flipkart"),
+            ("Divya", "Microsoft"), ("Suresh", "Oracle"), ("Neha", "Adobe"),
+            ("Vikram", "Zoho"), ("Meena", "Swiggy"), ("Imran", "Paytm")]
+    couples = [("Meera", "Sanjay"), ("Sunita", "Mohan"), ("Kavya", "Arun"), ("Isha", "Kabir")]
+    chain = ["Priya is my sister", "Karan is Priya's husband", "Karan works at Infosys"]
+
+    # vector only
+    stored = chain + [f"{p} works at {c}" for p, c in jobs] + [f"{h} is {w}'s husband" for w, h in couples]
+    col.add(ids=[f"d{i}" for i in range(len(stored))], documents=stored)
+    top3 = col.query(query_texts=[question], n_results=3)["documents"][0]
+    assert not all(c in top3 for c in chain), f"vector unexpectedly found the chain: {top3}"
+
+    # graph
+    wipe()
+    for s, r, o in [("user", "sister", "Priya"), ("Priya", "husband", "Karan"), ("Karan", "works_at", "Infosys")]:
+        remember_relation.invoke({"subject": s, "relation": r, "obj": o})
+    for p, c in jobs:
+        remember_relation.invoke({"subject": p, "relation": "works_at", "obj": c})
+    for w, h in couples:
+        remember_relation.invoke({"subject": w, "relation": "husband", "obj": h})
+    hop1 = query_relations.invoke({"subject": "user", "relation": "sister"})
+    hop2 = query_relations.invoke({"subject": hop1.split("->")[-1].strip(), "relation": "husband"})
+    hop3 = query_relations.invoke({"subject": hop2.split("->")[-1].strip(), "relation": "works_at"})
+    assert "infosys" in hop3.lower()

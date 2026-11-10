@@ -12,7 +12,7 @@ Chat models forget everything once a conversation ends. LangGraph's checkpointer
 
 It is deliberately narrow. It does not book anything or browse the web. It remembers, updates and forgets, and I spent the effort on making that part dependable and measurable.
 
-Stack: LangGraph, ChromaDB, SQLite, Streamlit. The model is `openai/gpt-oss-120b` on the Groq free tier, used for the whole project. Embeddings run locally with `all-MiniLM-L6-v2`, so nothing besides the chat model needs an API key.
+Stack: LangGraph, ChromaDB, SQLite, Streamlit, pytest, GitHub Actions. The model is `openai/gpt-oss-120b` on the Groq free tier, used for the whole project. Embeddings run locally with `all-MiniLM-L6-v2`, so nothing besides the chat model needs an API key.
 
 ## Motivation
 
@@ -102,19 +102,20 @@ The sidebar keeps your past chats. Each has a menu for renaming or deleting it. 
 
 ## Evaluation
 
-`python eval.py` runs ten scripted scenarios. A few choices make the results meaningful:
+`python -m pytest -v` runs ten scripted scenarios against the real model, plus one deterministic graph-versus-vector test that uses no model. A few choices make the results meaningful:
 
-- Every scenario runs against a fresh temporary data folder, and both stores are wiped between scenarios, so real memory is never touched and scenarios cannot influence each other.
-- Information is given in one session and asked about in a **new thread**, so a correct answer can only come from long-term memory, not from conversation history.
-- Update and forget cases check the stores themselves, not the wording of the reply. A model saying "done, removed" proves nothing.
+- Every test runs against a fresh temporary data folder, and both stores are wiped before each test, so real memory is never touched and tests cannot influence each other.
+- Every assertion is on the stores, not on the model's reply. A model saying "done, removed" proves nothing.
+- Recall cases give information in one session, then check what a brand-new session would be handed: the same lookup the agent runs before every model call, with no thread history. A correct result can only come from long-term memory. This tests storage and retrieval, not how the model phrases its final answer.
 - The approval prompt is answered automatically, with yes or no depending on the case.
+- A Groq rate limit marks a test as skipped, not failed, because it says nothing about the code.
 
 | ID | Scenario | Passes if |
 |---|---|---|
-| R1 | Tell it an allergy and a meeting preference, then ask what food to avoid in a new thread | Reply mentions peanuts |
-| R2 | Tell it a name and job, ask the job in a new thread | Reply mentions the job |
-| R3 | Tell it a sister works at Wipro, ask where in a new thread | Reply mentions Wipro (relation recall) |
-| U1 | Live in Hyderabad, later "I moved to Pune", then ask | Reply says Pune, and Hyderabad is gone from both stores |
+| R1 | Tell it an allergy and a meeting preference | The peanut fact is stored, and a new session's retrieved memory for "what food should I avoid?" contains it |
+| R2 | Tell it a name and job | The job is stored, and a new session's retrieved memory for "what do I do for work?" contains it |
+| R3 | Tell it a sister works at Wipro | Both relations are stored (`user sister meera`, `meera works_at wipro`), and a new session's retrieved memory for "where does my sister work?" contains Wipro |
+| U1 | Live in Hyderabad, later "I moved to Pune" | Pune is stored, and Hyderabad is gone from both stores |
 | U2 | Favorite language Java, later Python | Python stored, Java gone |
 | U3 | Say the same fact in two sessions | Exactly one stored copy |
 | U4 | Sister works at Wipro, later at TCS | Relation table has TCS, no Wipro |
@@ -128,7 +129,11 @@ The sidebar keeps your past chats. Each has a menu for renaming or deleting it. 
 | Update | 4/4 |
 | Forget | 3/3 |
 
-That is 10/10 on one run. Language model output varies between runs and ten scenarios is a small suite, so read this as a sanity check that the mechanics work, not as an accuracy benchmark. Raw results are in `eval_results.json`.
+That is 10/10 on one run. Language model output varies between runs and ten scenarios is a small suite, so read this as a sanity check that the mechanics work, not as an accuracy benchmark.
+
+### Continuous integration
+
+A GitHub Actions workflow (`.github/workflows/tests.yml`) runs the full suite on every push, on a clean Ubuntu machine. The Groq key is stored as a repository secret named `GROQ_API_KEY`. Because the tests call the live model, a run takes about five minutes and uses part of the free daily token cap.
 
 ### Graph versus vector
 
@@ -140,7 +145,7 @@ Vikram works at Zoho
 Rohan works at Amazon
 ```
 
-The two statements linking Priya to her husband and his employer are not in the results, so the question cannot be answered from them. Following relations in the graph answers it in three hops: `user -sister-> priya`, `priya -husband-> karan`, `karan -works_at-> infosys`. This is deterministic and uses no model. The setup is `graph_vs_vector()` in `eval.py`. A two-step chain (sister, then her employer) did not fail in the same setup, so the graph's advantage shows up on longer chains, not on every multi-step question.
+The two statements linking Priya to her husband and his employer are not in the results, so the question cannot be answered from them. Following relations in the graph answers it in three hops: `user -sister-> priya`, `priya -husband-> karan`, `karan -works_at-> infosys`. This is deterministic and uses no model. The setup is `test_graph_vs_vector` in `test_memory.py`. A two-step chain (sister, then her employer) did not fail in the same setup, so the graph's advantage shows up on longer chains, not on every multi-step question.
 
 ## Scope and constraints
 
@@ -161,7 +166,7 @@ Create a `.env` file containing `GROQ_API_KEY=your_key`, then:
 streamlit run streamlit_app.py
 ```
 
-Terminal version: `python agent.py`. Evaluation: `python eval.py`. For Streamlit Community Cloud, put the key in the app's secrets as `GROQ_API_KEY`.
+Terminal version: `python agent.py`. Tests: `python -m pytest -v` (needs the same `GROQ_API_KEY`). For Streamlit Community Cloud, put the key in the app's secrets as `GROQ_API_KEY`.
 
 Runtime data (Chroma store, relations, checkpoints, chat titles) is written to a `data/` folder next to the code. It is git-ignored.
 
@@ -173,4 +178,6 @@ Runtime data (Chroma store, relations, checkpoints, chat titles) is written to a
 | `fact_tools.py` | ChromaDB fact memory and its tools |
 | `graph_tools.py` | SQLite relation graph and its tools |
 | `streamlit_app.py` | Chat UI: past chats, tool-call view, approval buttons |
-| `eval.py` | Scripted multi-session evaluation and the graph-vs-vector comparison |
+| `test_memory.py` | Ten scripted multi-session tests plus the graph-versus-vector test |
+| `conftest.py` | Points tests at a temporary data folder and wipes both stores before each test |
+| `.github/workflows/tests.yml` | GitHub Actions: runs the tests on every push |
