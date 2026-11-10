@@ -14,6 +14,7 @@ from graph_tools import GRAPH_TOOLS, graph_context
 load_dotenv()
 
 ALL_TOOLS = FACT_TOOLS + GRAPH_TOOLS
+
 TOOL_FUNCTIONS = {t.name: t for t in ALL_TOOLS}
 
 RISKY = {"forget_fact", "forget_relation"}
@@ -22,7 +23,8 @@ SYSTEM_PROMPT ="""You are a personal assistant with long-term memory in two stor
 - FACTS (remember_fact, search_memory, update_fact, forget_fact): short free-text statements, e.g. "User's name is Shyam", "User studies at CMR", "User is allergic to peanuts".
 - RELATIONS (remember_relation, query_relations, update_relation, forget_relation): links between two named things as (subject, relation, obj), e.g. ('user','sister','Meera'), ('Meera','works_at','Wipro'). Use 'user' as the subject for the user.
 
-STORING: When the user tells you something, use your own judgment about which store fits: statements about the user themself are facts; links between named people, places or organisations are relations. Extract everything in the message and make all the tool calls in one step. Use short snake_case relation names. Do not search before storing new information.
+STORING: When the user tells you something, use your own judgment about which store fits: statements about the user themself are facts; links between named people, places or organisations are relations. Extract everything in the message and make all the tool calls in one step. Use short snake_case relation names. 
+Do not search before storing new information.
 
 CHANGING: If the user changes something already stored, find it first (search_memory for facts, query_relations for relations), then call update_fact or update_relation.
 FORGETTING: find it first, then call forget_fact or forget_relation. Never guess ids or values.
@@ -99,7 +101,7 @@ def should_continue(state: State):
     return END
 
 
-graph = StateGraph(State)
+graph = StateGraph(State) 
 graph.add_node("llm", llm_node)
 graph.add_node("tools", tools_node)
 graph.add_edge(START, "llm")
